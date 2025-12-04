@@ -16,6 +16,13 @@ COLUMNS = [
 
 LABEL_RE = re.compile(r"\[\[IMG:p(\d+)-i(\d+)\]\]")
 
+def _clean(value) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    return str(value).strip()
+
 def make_title(label: str, page_value) -> str:
     m = LABEL_RE.fullmatch(label or "")
     if m:
@@ -28,6 +35,25 @@ def make_title(label: str, page_value) -> str:
         p = "?"
     return f"Image - Page {p}, image ?"
 
+def build_content_text(title: str, *, label: str, suggested_caption: str,
+                       alt_short: str, alt_long: str, purpose: str) -> str:
+    sections = [title] if title else []
+
+    def add_section(name: str, value: str):
+        cleaned = _clean(value)
+        if cleaned:
+            sections.append(f"{name}: {cleaned}")
+        else:
+            sections.append(f"{name}: (not provided)")
+
+    add_section("Label", label)
+    add_section("Suggested caption", suggested_caption)
+    add_section("Alt short", alt_short)
+    add_section("Alt long", alt_long)
+    add_section("Purpose", purpose)
+
+    return "\n\n".join(sections).strip()
+
 def main(in_path: str, out_path: str):
     today = date.today().isoformat()
 
@@ -36,14 +62,23 @@ def main(in_path: str, out_path: str):
 
     rows = []
     for obj in items:
-        label = obj.get("label", "")
+        label = _clean(obj.get("label"))
         page = obj.get("page")
         title = make_title(label, page)
 
-        suggested_caption = (obj.get("suggested_caption") or "").strip()
-        alt_short = (obj.get("alt_short") or "").strip()
+        suggested_caption = _clean(obj.get("suggested_caption"))
+        alt_short = _clean(obj.get("alt_short"))
+        alt_long = _clean(obj.get("alt_long"))
+        purpose = _clean(obj.get("purpose"))
 
-        content_text = f"{suggested_caption}\n\n{title}\n\n{alt_short}\n\n{alt_short}"
+        content_text = build_content_text(
+            title,
+            label=label,
+            suggested_caption=suggested_caption,
+            alt_short=alt_short,
+            alt_long=alt_long,
+            purpose=purpose,
+        )
 
         row = {
             "Date": today,
